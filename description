@@ -1,0 +1,13 @@
+Info sur la librarie utilisée 
+
+
+Page github des modèles Markov switching
+https://github.com/statsmodels/statsmodels/blob/main/statsmodels/tsa/regime_switching/markov_switching.py
+Page github des modèles Markov regression
+https://github.com/statsmodels/statsmodels/blob/main/statsmodels/tsa/regime_switching/markov_regression.py
+Page github de Markov autoregression switching
+https://github.com/statsmodels/statsmodels/blob/main/statsmodels/tsa/regime_switching/markov_autoregression.py
+Page example Hamilton  avec Markov autoregession switching
+https://www.statsmodels.org/dev/examples/notebooks/generated/markov_autoregression.html
+Exemple de modèle markov appliqué au Nasdaq 
+https://sarit-maitra.medium.com/markov-regime-switching-non-linear-model-8ebfdf6eb755
