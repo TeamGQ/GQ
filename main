@@ -1,0 +1,223 @@
+import numpy as np
+import pandas as pd
+import statsmodels.api as sm
+
+
+class MarkovSwitching:
+    def __init__(self, data_presample: pd.DataFrame = None, data_train: pd.DataFrame = None, nb_regime: int = None,
+                 nb_order: int = None, model: str = None):
+
+        self.data_presample = data_presample
+        self.data_train = data_train
+        self.nb_regime = nb_regime
+        self.nb_order = nb_order
+        self.model = model
+        self.data_estim = self.data_presample.iloc[self.nb_order:]
+
+    def MSM_AR_fit(self):
+        mod = sm.tsa.MarkovAutoregression(self.data_presample, k_regimes=self.nb_regime, order=self.nb_order,
+                                          switching_ar=False)
+        return mod.fit()
+
+    # Same as above without the AR component
+    def MSM_fit(self):
+        mod = sm.tsa.MarkovRegression(self.data_presample, k_regimes=self.nb_regime)
+        return mod.fit()
+
+    def MSMH_AR_fit(self):
+        mod = sm.tsa.MarkovAutoregression(self.data_presample, k_regimes=self.nb_regime, order=self.nb_order,
+                                          switching_ar=False, switching_variance=True)
+        return mod.fit()
+
+    def MSMH_fit(self):
+        mod = sm.tsa.MarkovRegression(self.data_presample, k_regimes=self.nb_regime, switching_variance=True)
+        return mod.fit()
+
+    # To get only the first beta in the models of Clements and Krolzig
+    @property
+    def exog(self):
+        exg = np.zeros((len(self.data_presample), 1))
+        exg[0] = 1
+        return exg
+
+    # Pas sur que ce soit la bonne implémentation pour les modèles MSI_AR et MISH_AR
+    # Possible que cette librairie ne permette pas de les implémenter malgré les options disponibles et l'exog créée
+    def MSI_AR_fit(self):
+        mod = sm.tsa.MarkovAutoregression(self.data_presample, k_regimes=self.nb_regime, order=self.nb_order,
+                                          switching_ar=False, trend='n', exog=self.exog, switching_exog=True)
+        return mod.fit()
+
+    def MSI_fit(self):
+        return self.MSM_fit()
+
+    def MSIH_AR_fit(self):
+        mod = sm.tsa.MarkovAutoregression(self.data_presample, k_regimes=self.nb_regime, order=self.nb_order,
+                                          switching_ar=False, switching_variance=True, trend='n', exog=self.exog,
+                                          switching_exog=True)
+        return mod.fit()
+
+    def MSIH_fit(self):
+        return self.MSMH_fit()
+
+    def res_fit(self):
+        if self.model == "MSM_AR":
+            if self.nb_order != 0: # Markov Model with autoregression component
+                res = self.MSM_AR_fit()
+            else: # Without i.e just Markov regression model
+                res = self.MSM_fit()
+        elif self.model == "MSMH_AR":
+            if self.nb_order != 0:
+                res = self.MSMH_AR_fit()
+            else:
+                res = self.MSMH_fit()
+        elif self.model == "MSI_AR":
+            if self.nb_order != 0:
+                res = self.MSI_AR_fit()
+            else:
+                res = self.MSI_fit()
+        else:
+            if self.nb_order != 0:
+                res = self.MSIH_AR_fit()
+            else:
+                res = self.MSIH_fit()
+        return res
+
+    def smooth_prob(self, res_fit):
+        return res_fit.smoothed_marginal_probabilities
+
+    def pred_prob(self, res_fit):
+        return res_fit.predicted_marginal_probabilities
+
+    # Formula from 3. OPTIMAL FORECASTS FOR A SIMPLE MODEL (with k parameters = 1 and xt exogen = 1 (so constant))
+    # Therefore Simple Model = MSM, MSMH, MSI, MISH
+    # the standard Markov switching weights
+    def standard_weights_simple_model(self):
+        res = self.res_fit()
+        smoothed_prob = self.smooth_prob(res)
+        predicted_prob = self.pred_prob(res)
+        standard_weights = list(
+            map(lambda i: sum(predicted_prob.iloc[i] * smoothed_prob.iloc[i] / sum(smoothed_prob.iloc[i])),
+                range(len(smoothed_prob))))
+        return np.array(standard_weights) / np.sum(standard_weights)
+
+    def optimal_weights_simple_model(self):
+        #formule numéro 8 dans section 3
+        pass
+
+    # Formula from 3.1
+    def standard_weights_conditonal_states(self):
+        pass
+
+    def optimal_weights_conditonal_states(self):
+        pass
+
+    # Formula from 3.2
+    def standard_weights_conditonal_prob(self):
+        pass
+
+    def optimal_weights_conditonal_prob(self):
+        pass
+
+    # Formula from 3.3
+    def standard_weights_conditonal_prob_full(self):
+        pass
+
+    def optimal_weights_conditonal_prob_full(self):
+        pass
+
+    def forecast_standard_weights(self):
+        if self.nb_order != 0:
+            weights = None #Has to be implemented
+            frcst = None # Formule dans la section 5.1 en milieu de page à gauche (y T+1 MS)
+        else:
+            weights = self.standard_weights_simple_model()
+            frcst = np.sum(weights * self.data_estim.values.T) #formule numéro 4 dans section 3
+        return frcst
+
+    def forecast_optimal_weights(self):
+        if self.nb_order != 0:
+            frcst = None # Formule dans la section 5.1 en fin de page à gauche (y T+1 opt)
+        else:
+            frcst = None #Pas de formule pas besoin
+        return frcst
+
+    def MSFE_standard_weights(self):
+        if self.nb_order != 0:
+            msfe = None
+        else:
+            forecast = self.forecast_standard_weights()
+            if self.model[3] != 'H': # détermine si le modèle à une switching_variance = False
+                sigma = np.sqrt(self.res_fit().params.loc['sigma2'])
+            else: # si switching_variance = True alors prendre la dernière i.e sigma indice m dans le papier
+                sigma = np.sqrt(self.res_fit().params.loc[f'sigma2[{self.nb_regime-1}]'])
+            msfe = sigma**(-2)*(self.data_train.iloc[0].values - forecast) ** 2
+        return msfe
+
+    def MSFE_optimal_weights(self):
+        if self.nb_order != 0:
+            msfe = None
+        else:
+            weights = self.optimal_weights_simple_model()
+            msfe = None # Formule numéro 9 dans la section 3
+        return msfe
+
+def dict_name(dic: dict) -> str:
+    name = [x for x in globals() if globals()[x] is dic][0]
+    return name
+
+
+if __name__ == '__main__':
+
+    # Data used in the application of the paper
+    # GNP download from FRED
+    dta = pd.read_excel(r"C:\Users\asarfati\Documents\GQ\GNP.xlsx")
+    dta.set_index("observation_date", inplace=True)
+    dta.index = pd.DatetimeIndex(dta.index, freq="QS")
+    dta = np.log(dta / dta.shift(1))
+
+    # Horizon of the paper
+    dta_presample = dta.loc["1947-01-04":"1973-03-30"]
+    dta_training = dta.loc["1973-04-01":"1983-01-01"]
+    dta_outsample = dta.loc["1983-03-30":"2014-01-01"]
+
+    # Models tested in the paper (range of candidate Markov switching models)
+    # the key represents the number of regime in Markov Switching
+    # the values represent the order of AR
+    MSM_AR = {2: {0, 1, 2, 3, 4},
+              3: {1, 2}}
+    MSMH_AR = {2: {0, 1, 2, 3, 4},
+               3: {1, 2}}
+    MSI_AR = {2: {0, 1, 2, 3, 4},
+              3: {0, 1, 2, 3, 4}}
+    MSIH_AR = {2: {0, 1, 2, 3, 4},
+               3: {0, 1, 2, 3, 4}}
+    models = [MSM_AR, MSMH_AR, MSI_AR, MSIH_AR]
+
+    # Select the Markov switching model that, based on standard weights, delivers the lowest MSFE
+    # "We start evaluating forecasts for model selection
+    # purposes with a training period 1973Q2–1983Q1. The model that has the minimum MSFE over this period
+    # (using standard weights) is selected as the forecasting model for the observation 1983Q2"
+
+    min_msfe = 1
+    nb_regime_opt = None
+    nb_order_opt = None
+    models_opt = None
+
+    for mdl in models:
+        for key in mdl.keys():
+            for value in mdl.get(key):
+                test_msfe_standard_weights = MarkovSwitching(dta_training,
+                                                             dta_outsample,
+                                                             nb_regime=key,
+                                                             nb_order=value,
+                                                             model=dict_name(mdl)).MSFE_standard_weights()
+                try :
+                    if test_msfe_standard_weights < min_msfe:
+                        nb_regime_opt = key
+                        nb_order_opt = value
+                        models_opt = dict_name(mdl)
+                except :
+                    pass
+
+    print(nb_regime_opt, nb_order_opt, models_opt)
+    # should be MSM(3)-AR(1)
