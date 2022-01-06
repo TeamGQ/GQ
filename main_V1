@@ -61,9 +61,9 @@ class MarkovSwitching:
 
     def res_fit(self):
         if self.model == "MSM_AR":
-            if self.nb_order != 0: # Markov Model with autoregression component
+            if self.nb_order != 0:  # Markov Model with autoregression component
                 res = self.MSM_AR_fit()
-            else: # Without i.e just Markov regression model
+            else:  # Without i.e just Markov regression model
                 res = self.MSM_fit()
         elif self.model == "MSMH_AR":
             if self.nb_order != 0:
@@ -100,7 +100,7 @@ class MarkovSwitching:
         return np.array(standard_weights) / np.sum(standard_weights)
 
     def optimal_weights_simple_model(self):
-        #formule numéro 8 dans section 3
+        # formule numéro 8 dans section 3
         pass
 
     # Formula from 3.1
@@ -117,10 +117,10 @@ class MarkovSwitching:
 
     def forecast_standard_weights(self):
         if self.nb_order != 0:
-            frcst = None # Formule dans la section 5.1 en fin de page à gauche (y T+1 opt)
+            frcst = None  # Formule dans la section 5.1 en fin de page à gauche (y T+1 opt)
         else:
             weights = self.standard_weights()
-            frcst = np.sum(weights * self.data_estim.values.T) #formule numéro 4 dans section 3
+            frcst = np.sum(weights * self.data_estim.values.T)  # formule numéro 4 dans section 3
         return frcst
 
     def forecast_optimal_weights(self, weights_asked: str):
@@ -131,38 +131,49 @@ class MarkovSwitching:
                 weights = self.optimal_weights_conditonal_prob()
             else:
                 weights = self.optimal_weights_conditonal_prob_full()
-            frcst = None # Formule dans la section 5.1 en fin de page à gauche (y T+1 opt)
+            frcst = None  # Formule dans la section 5.1 en fin de page à gauche (y T+1 opt)
         else:
-            frcst = None #Pas de formule pas besoin
+            frcst = None  # Pas de formule pas besoin
         return frcst
 
     def MSFE_standard_weights(self):
-        forecast = self.forecast_standard_weights()
-        if self.model[3] != 'H': # détermine si le modèle à une switching_variance = False
-            sigma = np.sqrt(self.res_fit().params.loc['sigma2'])
-        else: # si switching_variance = True alors prendre la dernière i.e sigma indice m dans le papier
-            sigma = np.sqrt(self.res_fit().params.loc[f'sigma2[{self.nb_regime-1}]'])
-        msfe = sigma**(-2)*(self.data_train.iloc[0].values - forecast) ** 2
+        if self.nb_order != 0:
+            forecast = None
+            msfe = None  # formule à rajouter si besoin
+        else:
+            forecast = self.forecast_standard_weights()
+            if self.model[3] != 'H':  # détermine si le modèle à une switching_variance = False
+                sigma = np.sqrt(self.res_fit().params.loc['sigma2'])
+            else:  # si switching_variance = True alors prendre la dernière i.e sigma indice m dans le papier
+                sigma = np.sqrt(self.res_fit().params.loc[f'sigma2[{self.nb_regime - 1}]'])
+            msfe = sigma ** (-2) * (self.data_train.iloc[0].values - forecast) ** 2
         return msfe
 
-    def MSFE_optimal_weights(self):
+    def MSFE_optimal_weights(self, weights_asked: str):
         if self.nb_order != 0:
+            forecast = self.forecast_optimal_weights(weights_asked)
             msfe = None
         else:
             weights = self.optimal_weights_simple_model()
-            msfe = None # Formule numéro 9 dans la section 3
+            msfe = None  # Formule numéro 9 dans la section 3
         return msfe
+
 
 def dict_name(dic: dict) -> str:
     name = [x for x in globals() if globals()[x] is dic][0]
     return name
 
 
+def model_name(model_opt: str, nb_regime_opt: int, nb_order_opt: int) -> str:
+    mdl_splt = model_opt.split('_')
+    return mdl_splt[0] + "(" + (str(nb_regime_opt)) + ")" + "-" + mdl_splt[1] + "(" + (str(nb_order_opt)) + ")"
+
+
 if __name__ == '__main__':
 
     # Data used in the application of the paper
     # GNP download from FRED
-    dta = pd.read_excel(r"C:\Users\asarfati\Documents\GQ\GNP.xlsx")
+    dta = pd.read_excel(r"C:\Users\Mr Bruh\Desktop\Cours IEF M2\S1\Gestion quant\GNP.xlsx")
     dta.set_index("observation_date", inplace=True)
     dta.index = pd.DatetimeIndex(dta.index, freq="QS")
     dta = np.log(dta / dta.shift(1))
@@ -185,10 +196,22 @@ if __name__ == '__main__':
                3: {0, 1, 2, 3, 4}}
     models = [MSM_AR, MSMH_AR, MSI_AR, MSIH_AR]
 
+    # Instantiation of lists to stock the MSFE calculated during each iteration of loop on the outsample data
+    msfe_standard_weights = []
+    msfe_optimal_weights_conditonal_states = []
+    msfe_optimal_weights_conditonal_prob = []
+    msfe_optimal_weights_conditonal_prob_full = []
+
+    # Instation of a list to stock the minimum MSFE model during each iteration of loop on the outsample data
+    model_retained = []
+
     # Select the Markov switching model that, based on standard weights, delivers the lowest MSFE
     # "We start evaluating forecasts for model selection
     # purposes with a training period 1973Q2–1983Q1. The model that has the minimum MSFE over this period
     # (using standard weights) is selected as the forecasting model for the observation 1983Q2"
+
+    #(boucle a faire après avoir finit de compléter les formules etc)
+    #while not dta_outsample.empty:
 
     min_msfe = 1
     nb_regime_opt = None
@@ -203,60 +226,47 @@ if __name__ == '__main__':
                                                              nb_regime=key,
                                                              nb_order=value,
                                                              model=dict_name(mdl)).MSFE_standard_weights()
-                try :
+                try:
                     if test_msfe_standard_weights < min_msfe:
+                        min_msfe = test_msfe_standard_weights
                         nb_regime_opt = key
                         nb_order_opt = value
                         model_opt = dict_name(mdl)
-                except :
+                except:
                     pass
 
-    print(nb_regime_opt, nb_order_opt, model_opt)
+    model_retained.append(
+        model_name(model_opt, nb_regime_opt, nb_order_opt)) if not model_opt is None else model_retained.append(
+        None)
+
     # should be MSM(3)-AR(1)
-    # forecasts using the different weights are made with this model
-    # therefore there are 4 forecast :
-    """
-    forecast_standard_weights = MarkovSwitching(dta_training, dta_outsample, nb_regime_opt, nb_order_opt,
-                                                model_opt).forecast_standard_weights()
-    forecast_optimal_weights_conditonal_states = MarkovSwitching(dta_training, dta_outsample, nb_regime_opt, nb_order_opt,
-                                                model_opt).forecast_optimal_weights("contional_states")
-    forecast_optimal_weights_conditonal_prob = MarkovSwitching(dta_training, dta_outsample, nb_regime_opt, nb_order_opt,
-                                                model_opt).forecast_optimal_weights("contional_prob")
-    forecast_optimal_weights_conditonal_prob_full = MarkovSwitching(dta_training, dta_outsample, nb_regime_opt, nb_order_opt,
-                                                model_opt).forecast_optimal_weights("contional_prob_full")
-    
-    """
-    # we construct 4 new dta_outsample to stock information
-    """
-    dta_outsample_standard_weights = [forecast_standard_weights]
-    dta_outsample_optimal_weights_conditonal_states = [forecast_optimal_weights_conditonal_states]
-    dta_outsample_optimal_weights_conditonal_prob = [forecast_optimal_weights_conditonal_prob]
-    dta_outsample_optimal_weights_conditonal_prob_full =[forecast_optimal_weights_conditonal_prob_full]
-    
-    """
+
+    # "forecasts using the different weights are made with this model"
+    # "The next three columns report the ratio of MSFE of the optimal weights forecast"
+    # therefore we append the 4 MSFE to their respective list:
+
+    msfe_standard_weights.append(min_msfe)
+    msfe_optimal_weights_conditonal_states.append(
+        MarkovSwitching(dta_training, dta_outsample, nb_regime_opt, nb_order_opt,
+                        model_opt).MSFE_optimal_weights("contional_states"))
+    msfe_optimal_weights_conditonal_prob.append(
+        MarkovSwitching(dta_training, dta_outsample, nb_regime_opt, nb_order_opt,
+                        model_opt).MSFE_optimal_weights("contional_prob"))
+    msfe_optimal_weights_conditonal_prob_full.append(
+        MarkovSwitching(dta_training, dta_outsample, nb_regime_opt, nb_order_opt,
+                        model_opt).MSFE_optimal_weights("contional_prob_full"))
+
     # " Next, we
     # add the next period to our estimation and cross-validation sample, select the minimum MSFE model, and construct the next
     # forecast.
     # so we drop the first value of dta_outsample
+
     dta_training.append(dta_outsample.iloc[0])
-    dta_outsample=dta_outsample.iloc[1:]
+    dta_outsample = dta_outsample.iloc[1:]
 
-    #puis c'est reparti, boucle jusqu'à que dta_outsample soit vide i.e
-    # while i >= range(len(dta_outsample))
-    # ...
-    # i+=1
+        # puis c'est reparti, boucle jusqu'à que dta_outsample soit vide
 
-    #enfin regarder les forecasting performances of the standard and optimal weights
-    # puis faire ratio de MSFE optimal weights sur MSFE standard weights
+        # enfin regarder les forecasting performances of the standard and optimal weights
+        # puis faire ratio de MSFE optimal weights sur MSFE standard weights
 
-
-
-
-
-
-    """
-    Next, we add the next period to our estimation and cross-validation sample, select the minimum MSFE model,
-    and construct the next
-    forecast. Remarkably, in our application, the MSM(3)-AR(1)
-    model is selected throughout.
-    """
+    print("end")
