@@ -13,8 +13,8 @@ Exemple de modèle markov appliqué au Nasdaq
 https://sarit-maitra.medium.com/markov-regime-switching-non-linear-model-8ebfdf6eb755
 
 
-En faisant une extension pour appliquer le modèle du papier au BTC-ETH et une autre pour fit les rdm du BTC-USD j’me suis rendu compte qu’on avait un problème avec la fonction « fminunc » à chaque fois que je la run pour minimiser la log vraisemblance le code de retour est « fminunc stopped because it cannot decrease the objective function along the current search direction »
-Or minimiser la LL est fondamental pour implémenter les résultats du papier, c pour ca que jusqua présent les résultats obtenues n’étaient pas aussi proche. En gros le programme de minimisation garde le vecteur initial fournit (formé par des randn()) donc c’est nimp 
+En faisant une extension pour appliquer le modèle du papier au BTC-ETH et une autre pour fit les rdm du BTC-USD j’me suis rendu compte qu’on avait un problème avec la fonction « fminunc » à chaque fois que je la run pour minimiser la log vraisemblance, le code de retour est « fminunc stopped because it cannot decrease the objective function along the current search direction »
+Or minimiser la LL est fondamental pour implémenter les résultats du papier, c pour ca que jusqua présent les résultats obtenues n’étaient pas aussi proche. En gros le programme de minimisation garde le vecteur de parametre initial fournit (formé par des randn()) donc c’est nimp 
 Or dans le papier ya bien écrit “ initial parameters value given by global maximum likelihood estimation without regime shift”
 J’ai essayé de changer pas mal de truc comme les options de la function fminunc mais tjrs le meme message d’erreur. J’ai aussi essayé de voir si le pb venait des fonctions objectives dans lesquelles la LL est minimiser mais je vois pas dou ca peut venir
 Donc ca serait bien si qlqn arrive à trouver comment minimiser la LL proprement et obtenir les bonnes estimations de parametre
